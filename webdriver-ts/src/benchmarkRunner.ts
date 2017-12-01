@@ -4,6 +4,8 @@ import {BenchmarkType, Benchmark, benchmarks, fileName} from './benchmarks'
 import {setUseShadowRoot} from './webdriverAccess'
 
 const lighthouse = require('lighthouse');
+import {lhConfig} from './lighthouseConfig';
+console.log({lhConfig})
 import * as fs from 'fs';
 import * as yargs from 'yargs';
 import {JSONResult, config, FrameworkData, frameworks} from './common'
@@ -63,7 +65,6 @@ async function fetchEventsFromPerformanceLog(driver: WebDriver): Promise<{timing
     let timingResults : Timingresult[] = [];
     let protocolResults : any[] = [];
     let entries = [];
-    debugger;
     do {
         entries = await driver.manage().logs().get(logging.Type.PERFORMANCE);
         const {filteredEvents, protocolEvents} = extractRelevantEvents(entries);
@@ -88,7 +89,7 @@ async function computeResultsCPU(driver: WebDriver): Promise<number[]> {
     let entriesBrowser = await driver.manage().logs().get(logging.Type.BROWSER);
     if (config.LOG_DEBUG) console.log("browser entries", entriesBrowser);
     const perfLogEvents = (await fetchEventsFromPerformanceLog(driver));
-    debugger;
+
     let filteredEvents = perfLogEvents.timingResults;
     let protocolResults = perfLogEvents.protocolResults;
 
@@ -97,6 +98,9 @@ async function computeResultsCPU(driver: WebDriver): Promise<number[]> {
     fs.writeFileSync('./thistrace.json', JSON.stringify({traceEvents}));
     fs.writeFileSync('./thisdevtoolslogs.json', JSON.stringify(devtoolsLogs));
 
+
+    const lhResults = await lighthouse('http://example.com/thispage', {}, lhConfig);
+    console.log(lhResults.audits);
 
 
     if (config.LOG_DEBUG) console.log("filteredEvents ", asString(filteredEvents));
@@ -365,6 +369,8 @@ async function takeScreenshotOnError(driver: WebDriver, fileName: string, error:
     fs.writeFileSync(fileName, image, {encoding: 'base64'});
 }
 
+const wait = (delay = 1000) => new Promise(res => setTimeout(res, delay));
+
 async function runMemOrCPUBenchmark(framework: FrameworkData, benchmark: Benchmark, dir: string) {
         console.log("benchmarking ", framework, benchmark.id);
         let driver = buildDriver();
@@ -380,6 +386,7 @@ async function runMemOrCPUBenchmark(framework: FrameworkData, benchmark: Benchma
                 await driver.executeScript("console.timeStamp('finishedBenchmark')");
                 await afterBenchmark(driver, benchmark, framework);
                 await driver.executeScript("console.timeStamp('afterBenchmark')");
+                await wait(6000);
             } catch (e) {
                 await takeScreenshotOnError(driver, 'error-'+framework.name+'-'+benchmark.id+'.png', e);
                 throw e;
@@ -396,6 +403,8 @@ async function runMemOrCPUBenchmark(framework: FrameworkData, benchmark: Benchma
         if (config.EXIT_ON_ERROR) { throw "Benchmarking failed"}
     }
 }
+
+
 
 async function runStartupBenchmark(framework: FrameworkData, benchmark: Benchmark, dir: string) {
     console.log("benchmarking startup", framework, benchmark.id);
@@ -414,6 +423,7 @@ async function runStartupBenchmark(framework: FrameworkData, benchmark: Benchmar
                 await afterBenchmark(driver, benchmark, framework);
                 await driver.executeScript("console.timeStamp('afterBenchmark')");
                 results.push(await computeResultsStartup(driver));
+                await wait(6000);
             } catch (e) {
                 await takeScreenshotOnError(driver, 'error-'+framework.name+'-'+benchmark.id+'.png', e);
                 throw e;
